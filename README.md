@@ -11,6 +11,7 @@ and ported from our similar Cinema 4D Python Plugin https://github.com/noadanima
 * Save your desktop to keep the panel there next time you run Houdini.
 
 ## Use
+<img src="https://media.giphy.com/media/UL2bJ1t1PoqjmcKrlG/giphy.gif" width="554">
 With your animated node selected, press the buttons in the Keyframe Breakdowner panel to create new inbetween keyframes (or alter existing keyframes) at your current project time, with values interpolated from the nearest previous and nearest next keyframes.
    * Pressing the numbered buttons (15 through 85) will create keyframes that are 15%, 33%, 50% etc from the previous keyframe to the next keyframe.
    * Or enter a custom percentage in the text field before the 'Custom %' button, then press 'Custom %'.
