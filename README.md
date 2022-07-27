@@ -7,7 +7,7 @@ and ported from our similar Cinema 4D Python Plugin https://github.com/noadanima
 ## Installation
 * Copy the .pypanel file to your Houdini python_panels directory (eg C:\Users\User\Documents\houdini19.0\python_panels)
 * Run Houdini, set a pane to Pane Tab Type "Misc > Python Panel", and choose "Keyframe Breakdowner" from the dropdown.
-* If it doesn't appear in the dropdown, you may need to add it to the "Pane Tab Menu Entries" field in the "Pane Tab Menu" tab of the Python Panel Editor (menu "Windows > Python Panel Editor")
+  * If it doesn't appear in the dropdown, you may need to add it to the "Pane Tab Menu Entries" field in the "Pane Tab Menu" tab of the Python Panel Editor (menu "Windows > Python Panel Editor")
 * Save your desktop to keep the panel there next time you run Houdini.
 
 ## Use
