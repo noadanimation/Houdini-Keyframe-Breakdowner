@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <!-- This file contains definitions of Python interfaces and the
+ interfaces menu.  It should not be hand-edited when it is being
+ used by the application.  Note, that two definitions of the
+ same interface or of the interfaces menu are not allowed
+ in a single file. -->
+  <interface name="keyframe_breakdowner" label="Keyframe Breakdowner" icon="MISC_python" showNetworkNavigationBar="false" help_url="">
+    <script><![CDATA[########################################################################
+# Keyframe Breakdowner v0.1
+# Copyright 2022 Noad Animation Limited
+########################################################################
+
+from PySide2 import QtCore, QtWidgets
+
+class KeyframeSliderUndoClass():
+    def __init__(self, undokeys, redokeys):
+        self.undokeys = undokeys
+        self.redokeys = redokeys
+
+    def undo(self):
+        for key in self.undokeys:
+            parm = key[0]
+            keyframes = key[1]
+            parm.deleteAllKeyframes()
+            parm.setKeyframes(keyframes)
+
+    def redo(self):
+        for key in self.redokeys:
+            parm = key[0]
+            keyframes = key[1]
+            parm.deleteAllKeyframes()
+            parm.setKeyframes(keyframes)
+
+        
+class KeyframeBreakdownerPanel(QtWidgets.QFrame):
+    def __init__(self):
+        QtWidgets.QFrame.__init__(self)
+        
+        self.btn15 = QtWidgets.QPushButton("15%")
+        self.btn15.clicked.connect( lambda checked: self.handle_buttonclick(0.15) )
+        self.btn33 = QtWidgets.QPushButton("33%")
+        self.btn33.clicked.connect( lambda checked: self.handle_buttonclick(0.33) )
+        self.btn50 = QtWidgets.QPushButton("50%")
+        self.btn50.clicked.connect( lambda checked: self.handle_buttonclick(0.5) )
+        self.btn67 = QtWidgets.QPushButton("67%")
+        self.btn67.clicked.connect( lambda checked: self.handle_buttonclick(0.67) )
+        self.btn85 = QtWidgets.QPushButton("85%")
+        self.btn85.clicked.connect( lambda checked: self.handle_buttonclick(0.85) )
+        
+        self.textCustom = QtWidgets.QLineEdit(self)
+        self.textCustom.textChanged.connect(self._onTextCustomChanged)
+        self.textCustom.setText("50")
+        self.lastCustomValue = 50
+        
+        self.btnCustom = QtWidgets.QPushButton("Custom %")
+        self.btnCustom.clicked.connect( lambda checked: self.handle_buttonclick(None) )
+        
+        btnLayout = QtWidgets.QHBoxLayout()
+        btnLayout.addWidget(self.btn15)
+        btnLayout.addWidget(self.btn33)
+        btnLayout.addWidget(self.btn50)
+        btnLayout.addWidget(self.btn67)
+        btnLayout.addWidget(self.btn85)
+        btnLayout.addWidget(self.textCustom)
+        btnLayout.addWidget(self.btnCustom)
+        #
+        
+        self.valueSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal, self)
+        self.valueSlider.setTickPosition(QtWidgets.QSlider.TicksBothSides)
+        self.valueSlider.setTickInterval(1)
+        self.valueSlider.sliderPressed.connect(self._onSliderPressed)
+        self.valueSlider.sliderMoved.connect(self._onSliderChanged)
+        self.valueSlider.sliderReleased.connect(self._onSliderReleased)
+        self.valueSlider.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.valueSlider.setRange(0, 100)
+        self.valueSlider.setValue(50)
+        
+        self.slideScopedParms = None
+        self.slidePreKeyframes = None
+        
+        sliderLayout = QtWidgets.QHBoxLayout()
+        sliderLayout.addWidget(self.valueSlider, 2)
+        
+        MasterLayout = QtWidgets.QVBoxLayout()
+        MasterLayout.addLayout(btnLayout)
+        MasterLayout.addLayout(sliderLayout)
+        MasterLayout.addStretch(1)
+        
+        self.setLayout(MasterLayout)
+        
+        self.node = None
+        
+    def getScopedParms(self):
+        node = self.node
+        
+        parms = node.parms()
+        scopedparms = []
+        for parm in parms:
+            parm = parm.getReferencedParm()
+            if not (parm.isScoped() and parm.isSelected()): continue
+            currentkeys = parm.keyframes()
+            if len(currentkeys)==0: continue
+            
+            scopedparms.append(parm)
+        return scopedparms
+        
+    def interpolateKeyframes(self, ratio, scopedparms):
+        time = hou.time()
+        frame = hou.timeToFrame(time)
+        for parm in scopedparms:
+                                          
+            currentkeys = parm.keyframes()
+            
+            beforekey = None
+            afterkey  = None    
+            existingkey = None
+            
+            for key in currentkeys:
+                key_frame = hou.timeToFrame(key.time())
+                if key_frame < frame:
+                    if beforekey==None or beforekey.time() < key.time():
+                        beforekey = key
+                elif key_frame > frame:
+                    if afterkey==None or afterkey.time() > key.time():
+                        afterkey = key
+                else:
+                    existingkey = key
+                                    
+            if beforekey and afterkey:
+                beforeval = beforekey.value()
+                afterval = afterkey.value()
+            
+                newval = beforeval + ((afterval - beforeval) * ratio)
+                
+                if existingkey:
+                    existingkey.setValue(newval)
+                    parm.setKeyframe(existingkey)
+                else:
+                    newkey = hou.Keyframe(newval, time)
+                    newkey.setInSlopeAuto(True)
+                    newkey.setSlopeAuto(True)
+                    parm.setKeyframe(newkey)
+        
+    def handle_buttonclick(self, ratio):
+        if ratio==None:
+            try:
+                ratio = float(self.textCustom.text()) * 0.01
+            except ValueError:
+                return
+                
+        node = self.node
+        if(node==None):
+            return
+                              
+        scopedparms = self.getScopedParms()        
+        with hou.undos.group("Add keyframe breakdown"):
+            self.interpolateKeyframes(ratio, scopedparms)
+               
+    def _onTextCustomChanged(self, text):
+        try:
+            value = float(self.textCustom.text())
+            self.lastCustomValue = value
+        except ValueError:
+            self.textCustom.setText(str(self.lastCustomValue))
+            
+    def _onSliderPressed(self):
+        self.slideScopedParms = self.getScopedParms()
+        self.slidePreKeyframes = []
+        #
+        for parm in self.slideScopedParms:
+            parmkeyframepair = []
+            parmkeyframepair.append(parm)
+            parmkeyframepair.append(parm.keyframes())
+            self.slidePreKeyframes.append(parmkeyframepair)
+        
+    def _onSliderChanged(self, value):
+        self.textCustom.setText(str(value))
+        self.lastCustomValue = value
+        #
+        if(self.slideScopedParms==None or self.slidePreKeyframes==None): return
+        ratio = value * 0.01
+        
+        with hou.undos.disabler():
+            self.interpolateKeyframes(ratio, self.slideScopedParms)
+        
+    def _onSliderReleased(self):
+        slidePostKeyframes = []
+        for parm in self.slideScopedParms:
+            parmkeyframepair = []
+            parmkeyframepair.append(parm)
+            parmkeyframepair.append(parm.keyframes())
+            slidePostKeyframes.append(parmkeyframepair)
+            
+        undo = KeyframeSliderUndoClass(self.slidePreKeyframes, slidePostKeyframes)
+        hou.undos.add(undo, "Slide keyframe breakdown")
+    
+        self.slideScopedParms = None
+        self.slidePreKeyframes = None
+            
+    def setNode(self, node):
+        self.node = node
+        
+        if self.node == None:
+            self.btn15.setEnabled(False)
+            self.btn33.setEnabled(False)
+            self.btn50.setEnabled(False)
+            self.btn67.setEnabled(False)
+            self.btn85.setEnabled(False)
+            self.btnCustom.setEnabled(False)
+            self.valueSlider.setEnabled(False)
+        else:
+            self.btn15.setEnabled(True)
+            self.btn33.setEnabled(True)
+            self.btn50.setEnabled(True)
+            self.btn67.setEnabled(True)
+            self.btn85.setEnabled(True)
+            self.btnCustom.setEnabled(True)
+            self.valueSlider.setEnabled(True)
+ 
+kfbdwidget = KeyframeBreakdownerPanel()
+            
+def onCreateInterface():
+    global kfbdwidget
+    #widget = QtWidgets.QLabel('Hello World!')
+    #return widget
+    #interface = KeyframeBreakdownerPanel()
+    return kfbdwidget
+
+def onNodePathChanged(node):
+    global kfbdwidget
+    kfbdwidget.setNode(node)]]></script>
+    <includeInToolbarMenu menu_position="104" create_separator="false"/>
+    <help><![CDATA[]]></help>
+  </interface>
+</pythonPanelDocument>
